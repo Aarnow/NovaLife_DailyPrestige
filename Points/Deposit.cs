@@ -8,10 +8,10 @@ using mk = ModKit.Helper.TextFormattingHelper;
 using System.Collections.Generic;
 using System.Linq;
 using Life;
-using System;
 using DailyPrestige.Entities;
 using ModKit.Utils;
 using Life.InventorySystem;
+using DailyPrestige.Classes;
 
 namespace DailyPrestige.Points
 {
@@ -78,7 +78,36 @@ namespace DailyPrestige.Points
                         panel.TextLines.Add($"Aujourd'hui, nous soutenons {mk.Color($"\"{currentTask[0].Name}\"", mk.Colors.Orange)}");
                         panel.TextLines.Add($"Apporter {mk.Color($"{currentTask[0].Quantity} {ItemUtils.GetItemById(currentTask[0].ItemId).itemName}", mk.Colors.Orange)} avant minuit.");
 
-                        panel.NextButton("Déposer", () => { });
+                        panel.NextButton("Déposer", async () =>
+                        {
+                            if(InventoryUtils.CheckInventoryContainsItem(player, currentTask[0].ItemId, currentTask[0].Quantity))
+                            {
+                                InventoryUtils.RemoveFromInventory(player, currentTask[0].ItemId, currentTask[0].Quantity);
+                                currentPlayer[0].Prestige += 1;
+                                currentPlayer[0].LastDateTaskCompleted = DateUtils.GetNumericalDateOfTheDay();
+                                if (await currentPlayer[0].Save())
+                                {
+                                    currentTask[0].ResolvedCounter += 1;
+                                    await currentTask[0].Save();
+
+                                    var cityHall = Nova.biz.FetchBiz(DailyPrestige._dailyPrestigeConfig.CityHallId);
+                                    cityHall.Bank += DailyPrestige._dailyPrestigeConfig.MoneyForCityHall;
+
+                                    player.Notify("DailyPrestige", "Donation effectuée. Vous gagnez 1 point de prestige.", NotificationManager.Type.Success);
+                                    panel.Refresh();
+                                }
+                                else
+                                {
+                                    player.Notify("DailyPrestige", "Nous n'avons pas pu enregistrer donation", NotificationManager.Type.Error);
+                                    panel.Refresh();
+                                }
+                            }
+                            else
+                            {
+                                player.Notify("DailyPrestige", "Vous n'avez pas les objets demandés", NotificationManager.Type.Success);
+                                panel.Refresh();
+                            }
+                        });
                     }
 
                     panel.NextButton("Récompenses", () =>
@@ -86,7 +115,7 @@ namespace DailyPrestige.Points
                         currentPlayer[0].LRewardRecovered = ListConverter.ReadJson(currentPlayer[0].RewardRecovered);
                         DepositRewardPanel(player, currentPlayer[0]);
                     });
-                    panel.NextButton("Donateurs", () => { });
+                    panel.NextButton("Donateurs", () => DepositLadderPanel(player));
                 }
                 else
                 {
@@ -124,7 +153,8 @@ namespace DailyPrestige.Points
 
         public async void DepositRewardPanel(Player player, DailyPrestige_Player currentPlayer)
         {
-            List<DailyPrestige_Reward> rewards = await DailyPrestige_Reward.QueryAll();
+            List<DailyPrestige_Reward> query = await DailyPrestige_Reward.QueryAll();
+            var rewards = query.OrderBy(p => p.PrestigeRequired);
 
             Panel panel = Context.PanelHelper.Create($"DailyPrestige - Récompenses", UIPanel.PanelType.TabPrice, player, () => DepositRewardPanel(player, currentPlayer));
 
@@ -148,6 +178,7 @@ namespace DailyPrestige.Points
                             if(InventoryUtils.AddItem(player, reward.ItemId, reward.ItemQuantity))
                             {
                                 currentPlayer.LRewardRecovered.Add(reward.Id);
+                                currentPlayer.RewardRecovered = ListConverter.WriteJson(currentPlayer.LRewardRecovered);
                                 if(await currentPlayer.Save())
                                 {
                                     player.Notify("DailyPrestige", $"Vous venez d'obtenir {reward.ItemQuantity} {currentItem.itemName}", NotificationManager.Type.Success);
@@ -173,6 +204,24 @@ namespace DailyPrestige.Points
             }
 
             panel.AddButton("Récupérer", _ => panel.SelectTab());
+            panel.PreviousButton();
+            panel.CloseButton();
+
+            panel.Display();
+        }
+        public async void DepositLadderPanel(Player player)
+        {
+            string steamId = player.steamId.ToString();
+            List<DailyPrestige_Player> query = await DailyPrestige_Player.QueryAll();
+            var players = query.OrderByDescending(p => p.Prestige);
+
+            Panel panel = Context.PanelHelper.Create($"DailyPrestige - Donateurs", UIPanel.PanelType.TabPrice, player, () => DepositLadderPanel(player));
+
+            foreach ((DailyPrestige_Player p, int index) in players.Select((p, index) => (p, index)))
+            {
+                panel.AddTabLine($"{mk.Color($"{index+1}#", mk.Colors.Warning)} {mk.Color($"{p.CharacterFullName}", (steamId == p.SteamId ? mk.Colors.Info : mk.Colors.Verbose))}", $"Prestige {p.Prestige}", IconUtils.Others.None.Id, _ => { });
+            }
+
             panel.PreviousButton();
             panel.CloseButton();
 
