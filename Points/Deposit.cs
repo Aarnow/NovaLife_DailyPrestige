@@ -8,9 +8,9 @@ using mk = ModKit.Helper.TextFormattingHelper;
 using System.Collections.Generic;
 using System.Linq;
 using Life;
-using ModKit.Utils;
-using Newtonsoft.Json;
 using System;
+using DailyPrestige.Entities;
+using ModKit.Utils;
 
 namespace DailyPrestige.Points
 {
@@ -36,7 +36,6 @@ namespace DailyPrestige.Points
         /// <param name="patternId">The identifier of the pattern in the database.</param>
         public async Task SetProperties(int patternId)
         {
-            Console.WriteLine(patternId);
             var result = await Query(patternId);
 
             Id = patternId;
@@ -50,8 +49,65 @@ namespace DailyPrestige.Points
         /// <param name="player">The player interacting with the point.</param>
         public void OnPlayerTrigger(Player player)
         {
-            //code
+            DepositPanel(player);
         }
+
+        #region CUSTOM
+        public async void DepositPanel(Player player)
+        {
+            int currentDate = DateUtils.GetNumericalDateOfTheDay();
+            List<DailyPrestige_Task> currentTask = await DailyPrestige_Task.Query(t => t.Date == currentDate);
+
+            Panel panel = Context.PanelHelper.Create($"DailyPrestige - Dépôt", UIPanel.PanelType.Text, player, () => DepositPanel(player));
+
+            if (currentTask != null && currentTask.Count > 0)
+            {
+                string currentSteamId = player.steamId.ToString();
+                List<DailyPrestige_Player> currentPlayer = await DailyPrestige_Player.Query(p => p.SteamId == currentSteamId);
+
+                if(currentPlayer != null && currentPlayer.Count > 0)
+                {
+                    if (currentPlayer[0].LastDateTaskCompleted == currentDate)
+                    {
+                        panel.TextLines.Add("Tâche complétée, revenir demain");
+                    } else
+                    {
+                        panel.TextLines.Add("Ramener ...");
+                        panel.NextButton("Déposer", () => { });
+                    }
+                }
+                else
+                {
+                    panel.TextLines.Add("Devenir un donateur");
+                    panel.AddButton("S'inscrire", async _ =>
+                    {
+                        DailyPrestige_Player newPlayer = new DailyPrestige_Player();
+                        newPlayer.SteamId = player.steamId.ToString();
+                        newPlayer.CharacterFullName = player.GetFullName();
+                        newPlayer.LRewardRecovered = new List<int>();
+                        newPlayer.RewardRecovered = ListConverter.WriteJson(newPlayer.LRewardRecovered);
+                        if (await newPlayer.Save())
+                        {
+                            player.Notify("DailyPrestige", "Inscription enregistrées", NotificationManager.Type.Success);
+                            panel.Refresh();
+                        }
+                        else
+                        {
+                            player.Notify("DailyPrestige", "Nous n'avons pas pu enregistrer votre inscription", NotificationManager.Type.Error);
+                            panel.Refresh();
+                        }
+                    });
+                }
+            }
+            else panel.TextLines.Add("Aucune tâche n'est disponible");
+
+            panel.NextButton("Récompenses", () => { });
+            panel.NextButton("Donateurs", () => { });
+            panel.CloseButton();
+
+            panel.Display();
+        }
+        #endregion
 
         /// <summary>
         /// Triggers the function to begin creating a new model.

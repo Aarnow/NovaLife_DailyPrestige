@@ -6,7 +6,7 @@ namespace DailyPrestige.Entities
     public class DailyPrestige_Player : ModKit.ORM.ModEntity<DailyPrestige_Player>
     {
         [AutoIncrement][PrimaryKey] public int Id { get; set; }
-        public ulong SteamId { get; set; }
+        public string SteamId { get; set; }
         public string CharacterFullName { get; set; }
         public int Prestige { get; set; }
         public int LastDateTaskCompleted {  get; set; }

@@ -119,7 +119,7 @@ namespace DailyPrestige
         private async Task<bool> GetDailyTask()
         {
             List<DailyPrestige_Task> tasks = await DailyPrestige_Task.QueryAll();
-            if(tasks.Count > 0)
+            if(tasks != null && tasks.Count > 0)
             {
                 DailyPrestige_Task dailyTask = tasks.Where(t => t.Date == DateUtils.GetNumericalDateOfTheDay()).FirstOrDefault();
                 if (dailyTask == null || dailyTask == default)
@@ -200,9 +200,6 @@ namespace DailyPrestige
             {
                 task = new DailyPrestige_Task();
                 task.Name = "Nouvelle tâche";
-                task.ItemId = 0;
-                task.Quantity = 0;
-                task.ObjectiveCounter = 0;
             }
             //Déclaration
             Panel panel = PanelHelper.Create($"DailyPrestige - Gestion d'une tâche", UIPanel.PanelType.TabPrice, player, () => DailyPrestigePanelTaskDetails(player, task));
