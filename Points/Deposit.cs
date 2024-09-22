@@ -11,6 +11,7 @@ using Life;
 using System;
 using DailyPrestige.Entities;
 using ModKit.Utils;
+using Life.InventorySystem;
 
 namespace DailyPrestige.Points
 {
@@ -69,16 +70,31 @@ namespace DailyPrestige.Points
                 {
                     if (currentPlayer[0].LastDateTaskCompleted == currentDate)
                     {
-                        panel.TextLines.Add("Tâche complétée, revenir demain");
+                        panel.TextLines.Add("Merci beaucoup !");
+                        panel.TextLines.Add("Vous avez effectué votre donation quotidenne.");
+                        panel.TextLines.Add("Demain, nous referons un appel aux dons.");
                     } else
                     {
-                        panel.TextLines.Add("Ramener ...");
+                        panel.TextLines.Add($"Aujourd'hui, nous soutenons {mk.Color($"\"{currentTask[0].Name}\"", mk.Colors.Orange)}");
+                        panel.TextLines.Add($"Apporter {mk.Color($"{currentTask[0].Quantity} {ItemUtils.GetItemById(currentTask[0].ItemId).itemName}", mk.Colors.Orange)} avant minuit.");
+
                         panel.NextButton("Déposer", () => { });
                     }
+
+                    panel.NextButton("Récompenses", () =>
+                    {
+                        currentPlayer[0].LRewardRecovered = ListConverter.ReadJson(currentPlayer[0].RewardRecovered);
+                        DepositRewardPanel(player, currentPlayer[0]);
+                    });
+                    panel.NextButton("Donateurs", () => { });
                 }
                 else
                 {
-                    panel.TextLines.Add("Devenir un donateur");
+                    panel.TextLines.Add("Devenez un donateur !");
+                    panel.TextLines.Add($"{mk.Size("Compléter une donation augmente votre prestige.", 14)}");
+                    panel.TextLines.Add($"{mk.Size("Le prestige permet d'acquérir divers récompenses.", 14)}");
+                    panel.TextLines.Add($"{mk.Size("Les donations sont quotidiennes", 14)}");
+
                     panel.AddButton("S'inscrire", async _ =>
                     {
                         DailyPrestige_Player newPlayer = new DailyPrestige_Player();
@@ -101,8 +117,63 @@ namespace DailyPrestige.Points
             }
             else panel.TextLines.Add("Aucune tâche n'est disponible");
 
-            panel.NextButton("Récompenses", () => { });
-            panel.NextButton("Donateurs", () => { });
+            panel.CloseButton();
+
+            panel.Display();
+        }
+
+        public async void DepositRewardPanel(Player player, DailyPrestige_Player currentPlayer)
+        {
+            List<DailyPrestige_Reward> rewards = await DailyPrestige_Reward.QueryAll();
+
+            Panel panel = Context.PanelHelper.Create($"DailyPrestige - Récompenses", UIPanel.PanelType.TabPrice, player, () => DepositRewardPanel(player, currentPlayer));
+
+            panel.AddTabLine($"{mk.Color($"Prestige:", mk.Colors.Info)} {currentPlayer.Prestige}", _ => { });
+
+            foreach (var reward in rewards)
+            {
+                Item currentItem = ItemUtils.GetItemById(reward.ItemId);
+                bool claimed = currentPlayer.LRewardRecovered.Contains(reward.Id);
+
+                panel.AddTabLine($"{reward.ItemQuantity} x {currentItem.itemName}", $"{(claimed ? $"{mk.Color("récompense récupérée", mk.Colors.Grey)}" : $"requiert prestige {reward.PrestigeRequired}")}", ItemUtils.GetIconIdByItemId(reward.ItemId), async _ =>
+                {
+                    if(claimed)
+                    {
+                        player.Notify("DailyPrestige", "Vous avez déjà récupéré cette récompense", NotificationManager.Type.Info);
+                        panel.Refresh();
+                    } else
+                    {
+                        if(currentPlayer.Prestige >= reward.PrestigeRequired)
+                        {
+                            if(InventoryUtils.AddItem(player, reward.ItemId, reward.ItemQuantity))
+                            {
+                                currentPlayer.LRewardRecovered.Add(reward.Id);
+                                if(await currentPlayer.Save())
+                                {
+                                    player.Notify("DailyPrestige", $"Vous venez d'obtenir {reward.ItemQuantity} {currentItem.itemName}", NotificationManager.Type.Success);
+                                    panel.Refresh();
+                                } else
+                                {
+                                    InventoryUtils.RemoveFromInventory(player, reward.ItemId, reward.ItemQuantity);
+                                    player.Notify("DailyPrestige", "Nous n'avons pas pu enregistrer votre récompense", NotificationManager.Type.Error);
+                                    panel.Refresh();
+                                }
+                            } else
+                            {
+                                player.Notify("DailyPrestige", "Vous n'avez pas suffisament d'espace dans votre inventaire", NotificationManager.Type.Warning);
+                                panel.Refresh();
+                            }
+                        } else
+                        {
+                            player.Notify("DailyPrestige", "Vous n'avez pas suffisament de prestige", NotificationManager.Type.Info);
+                            panel.Refresh();
+                        }
+                    }
+                });
+            }
+
+            panel.AddButton("Récupérer", _ => panel.SelectTab());
+            panel.PreviousButton();
             panel.CloseButton();
 
             panel.Display();
