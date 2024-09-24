@@ -12,6 +12,11 @@ using DailyPrestige.Entities;
 using ModKit.Utils;
 using Life.InventorySystem;
 using DailyPrestige.Classes;
+using Life.AreaSystem;
+using ModKit.Helper.ManagerHelper;
+using System.Reflection;
+using System;
+using Life.DB;
 
 namespace DailyPrestige.Points
 {
@@ -54,6 +59,38 @@ namespace DailyPrestige.Points
         }
 
         #region CUSTOM
+        #region UTILS
+        public async Task EditRankProps(DailyPrestige_Task task)
+        {
+            List<DailyPrestige_Player> query = await DailyPrestige_Player.QueryAll();
+            var players = query.OrderByDescending(p => p.Prestige).ToList();
+
+            LifeArea cityHallArea = Nova.a.areas.Where(a => a.bizId == DailyPrestige._dailyPrestigeConfig.CityHallId).FirstOrDefault();
+
+            var RankingSheet = Nova.a.areas[cityHallArea.areaId].instance.objects.Where(o => o.Value.id == DailyPrestige._dailyPrestigeConfig.RankingSheet).FirstOrDefault();
+            var GoalSheet = Nova.a.areas[cityHallArea.areaId].instance.objects.Where(o => o.Value.id == DailyPrestige._dailyPrestigeConfig.GoalSheet).FirstOrDefault();
+
+            if (RankingSheet.Value != null)
+            {
+                RankingSheet.Value.data = $"{{\"text\":\"<color=#000000><size=0.15>\\n<align=\\\"center\\\"}}>\\n<size=0.2><color=#911f10><u>CLASSEMENT</color></u></size>\\n</align>\\n<line-height=0.135>\\n" +
+                $"1# {(players.Count > 0 ? $"{players[0].CharacterFullName}" : "-")}<br>\\n" +
+                $"2# {(players.Count > 1 ? $"{players[1].CharacterFullName}" : "-")}<br>\\n" +
+                $"3# {(players.Count > 2 ? $"{players[2].CharacterFullName}" : "-")}<br>\\n" +
+                $"4# {(players.Count > 3 ? $"{players[3].CharacterFullName}" : "-")}<br>\\n" +
+                $"5# {(players.Count > 4 ? $"{players[4].CharacterFullName}" : "-")}<br>\\n" +
+                $"6# {(players.Count > 5 ? $"{players[5].CharacterFullName}" : "-")}<br>\\n" +
+                $"7# {(players.Count > 6 ? $"{players[6].CharacterFullName}" : "-")}<br>\\n" +
+                $"8# {(players.Count > 7 ? $"{players[7].CharacterFullName}" : "-")}<br>\\n" +
+                $"9# {(players.Count > 8 ? $"{players[8].CharacterFullName}" : "-")}<br>\\n" +
+                $"10# {(players.Count > 9 ? $"{players[9].CharacterFullName}" : "-")}<br>\\n" +
+                $"</line-height>\\n</size></color>\"}}";
+                GoalSheet.Value.data = $"{{\"text\": \"<color=#000000><size=0.25>\\nObjectif commun<br>\\nLes citoyens ont effectués <color=#0e1587>{task.ResolvedCounter} donations sur {task.ObjectiveCounter}</color><br>\\nMobilisez-vous !<br><br>\\n<align=right>La Mairie</align>\\n</size></color>\"}}";
+                
+                Context.NetworkAreaHelper.RpcSetObject((int)cityHallArea.areaId, RankingSheet.Key, RankingSheet.Value, false);
+                Context.NetworkAreaHelper.RpcSetObject((int)cityHallArea.areaId, GoalSheet.Key, GoalSheet.Value, false);
+            }
+        }
+        #endregion
         public async void DepositPanel(Player player)
         {
             int currentDate = DateUtils.GetNumericalDateOfTheDay();
@@ -92,6 +129,10 @@ namespace DailyPrestige.Points
 
                                     var cityHall = Nova.biz.FetchBiz(DailyPrestige._dailyPrestigeConfig.CityHallId);
                                     cityHall.Bank += DailyPrestige._dailyPrestigeConfig.MoneyForCityHall;
+                                    if(currentTask[0].ResolvedCounter == currentTask[0].ObjectiveCounter) cityHall.Bank += DailyPrestige._dailyPrestigeConfig.MoneyForCityHall * DailyPrestige._dailyPrestigeConfig.BonusForCityHall;
+                                    cityHall.Save();
+
+                                    await EditRankProps(currentTask[0]);
 
                                     player.Notify("DailyPrestige", "Donation effectuée. Vous gagnez 1 point de prestige.", NotificationManager.Type.Success);
                                     panel.Refresh();
@@ -158,7 +199,7 @@ namespace DailyPrestige.Points
 
             Panel panel = Context.PanelHelper.Create($"DailyPrestige - Récompenses", UIPanel.PanelType.TabPrice, player, () => DepositRewardPanel(player, currentPlayer));
 
-            panel.AddTabLine($"{mk.Color($"Prestige:", mk.Colors.Info)} {currentPlayer.Prestige}", _ => { });
+            panel.AddTabLine($"{mk.Italic($"{mk.Size($"{mk.Color($"PRESTIGE {currentPlayer.Prestige}", mk.Colors.Info)}", 21)}")}", _ => { });
 
             foreach (var reward in rewards)
             {

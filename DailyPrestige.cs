@@ -6,6 +6,7 @@ using Life.AreaSystem;
 using Life.Network;
 using Life.UI;
 using ModKit.Helper;
+using ModKit.Helper.ManagerHelper;
 using ModKit.Interfaces;
 using ModKit.Utils;
 using Newtonsoft.Json;
@@ -53,42 +54,6 @@ namespace DailyPrestige
             InsertMenu();
             Nova.man.StartCoroutine(Cycle());
 
-            new SChatCommand("/alert", new string[] { "/alert" }, "alert", "/alert", async (player, arg) =>
-            {
-                List<DailyPrestige_Task> tasks = await DailyPrestige_Task.QueryAll();
-                List<DailyPrestige_Player> players = await DailyPrestige_Player.QueryAll();
-                players.OrderByDescending(p => p.Prestige);
-
-                if (tasks != null && tasks.Count > 0)
-                {
-                    DailyPrestige_Task dailyTask = tasks.Where(t => t.Date == DateUtils.GetNumericalDateOfTheDay()).FirstOrDefault();
-
-                    //-- -- -- -- -- -- -- -- -- -- --
-                    LifeArea cityHallArea = Nova.a.areas.Where(a => a.bizId == _dailyPrestigeConfig.CityHallId).FirstOrDefault();
-
-                    Console.WriteLine("terrain ID: " + cityHallArea.areaId); // DEBUG
-
-                    var TaskSheet = Nova.a.areas[cityHallArea.areaId].instance.objects.Where(o => o.Value.id == _dailyPrestigeConfig.TaskSheet).FirstOrDefault();
-                    var RankingSheet = Nova.a.areas[cityHallArea.areaId].instance.objects.Where(o => o.Value.id == _dailyPrestigeConfig.RankingSheet).FirstOrDefault();
-
-                    if (TaskSheet.Value != null && RankingSheet.Value != null)
-                    {
-                        // Déclaration des variables que vous souhaitez insérer
-                        var currentItem = ItemUtils.GetItemById(dailyTask.ItemId);
-
-                        // Chaîne de texte avec des variables interpolées
-                        TaskSheet.Value.data = $"{{\"text\":\"<color=#000000><size=0.25>\\r\\nChères citoyens,\\r\\nAujourd'hui, nous soutenons \\\"{dailyTask.Name}\\\"<br>\\r\\n<u>Apporter:</u> <color=#0e1587>{dailyTask.Quantity} x {currentItem.itemName}</color><br>\\r\\nMerci à tous et bonne journée !\\r\\n</size></color>\"}}";
-                        RankingSheet.Value.data = $"{{\"text\":\"<color=#000000><size=0.15>\\n<align=\\\"center\\\"}}>\\n<size=0.2><color=#bd5709><u>CLASSEMENT</color></u></size>\\n</align>\\n<line-height=0.135>\\n{(players[0] != null ? $"1# {players[0].CharacterFullName}" : "-")}<br>\\n2# - Patrick Arah<br>\\n3#- Scott White<br>\\n4#- Jackouille la Fripouille<br>\\n5#- Flopin Sad<br>\\n6#- Myrtille Dubois<br>\\n7#- Louloutre Exquise<br>\\n8#- Gabounet Naif<br>\\n9#- Baron Deco<br>\\n10#- Emil Over<br>\\n</line-height>\\n</size></color>\"}}";
-
-                        NetworkAreaHelper.RpcSetObject((int)cityHallArea.areaId, TaskSheet.Key, TaskSheet.Value, false);
-                        NetworkAreaHelper.RpcSetObject((int)cityHallArea.areaId, RankingSheet.Key, RankingSheet.Value, false);
-                    }
-                    else Console.WriteLine("rien à déclarer - debug");
-                    //-- -- -- -- -- -- -- -- -- -- --
-                }
-
-            }).Register();
-
             ModKit.Internal.Logger.LogSuccess($"{PluginInformations.SourceName} v{PluginInformations.Version}", "initialisé");
         }
 
@@ -129,22 +94,7 @@ namespace DailyPrestige
         }
         #endregion
 
-        #region COROUTINE
-        public IEnumerator Cycle()
-        {
-            while (true)
-            {
-                TimeSpan timeUntilMidnight = GetTimeUntilMidnight();
-
-                var query = GetDailyTask();
-                yield return new WaitUntil(() => query.IsCompleted);
-                bool result = query.Result;
-
-                if (result) yield return new WaitForSeconds((float)timeUntilMidnight.TotalSeconds); // Attendre jusqu'à minuit
-                else yield return new WaitForSeconds(20); // réessayer dans 20 secondes
-            }
-        }
-
+        #region UTILS
         private TimeSpan GetTimeUntilMidnight()
         {
             DateTime now = DateTime.Now;
@@ -155,7 +105,7 @@ namespace DailyPrestige
         private async Task<bool> GetDailyTask()
         {
             List<DailyPrestige_Task> tasks = await DailyPrestige_Task.QueryAll();
-            if(tasks != null && tasks.Count > 0)
+            if (tasks != null && tasks.Count > 0)
             {
                 DailyPrestige_Task dailyTask = tasks.Where(t => t.Date == DateUtils.GetNumericalDateOfTheDay()).FirstOrDefault();
 
@@ -163,26 +113,29 @@ namespace DailyPrestige
                 {
                     dailyTask = tasks[random.Next(tasks.Count)];
                     dailyTask.Date = DateUtils.GetNumericalDateOfTheDay();
+                    dailyTask.ResolvedCounter = 0;
                     await dailyTask.Save();
-                } 
-                    
-                return await EditProps(dailyTask);   
-            } 
-            
+                }          
+
+                return await EditProps(dailyTask);
+            }
+
             return false;
         }
 
         private async Task<bool> EditProps(DailyPrestige_Task task)
         {
-            List<DailyPrestige_Player> players = await DailyPrestige_Player.QueryAll();
-            players.OrderByDescending(p => p.Prestige);
+            List<DailyPrestige_Player> query = await DailyPrestige_Player.QueryAll();
+            var players = query.OrderByDescending(p => p.Prestige).ToList();
 
             LifeArea cityHallArea = Nova.a.areas.Where(a => a.bizId == _dailyPrestigeConfig.CityHallId).FirstOrDefault();
 
             var TaskSheet = Nova.a.areas[cityHallArea.areaId].instance.objects.Where(o => o.Value.id == _dailyPrestigeConfig.TaskSheet).FirstOrDefault();
             var RankingSheet = Nova.a.areas[cityHallArea.areaId].instance.objects.Where(o => o.Value.id == _dailyPrestigeConfig.RankingSheet).FirstOrDefault();
+            var GoalSheet = Nova.a.areas[cityHallArea.areaId].instance.objects.Where(o => o.Value.id == _dailyPrestigeConfig.GoalSheet).FirstOrDefault();
+            var GoalReactionPostIt = Nova.a.areas[cityHallArea.areaId].instance.objects.Where(o => o.Value.id == _dailyPrestigeConfig.GoalReactionPostIt).FirstOrDefault();
 
-            if (TaskSheet.Value != null && RankingSheet.Value != null)
+            if (TaskSheet.Value != null && RankingSheet.Value != null && GoalSheet.Value != null && GoalReactionPostIt.Value != null)
             {
                 var currentItem = ItemUtils.GetItemById(task.ItemId);
 
@@ -200,13 +153,46 @@ namespace DailyPrestige
                     $"10# {(players.Count > 9 ? $"{players[9].CharacterFullName}" : "-")}<br>\\n" +
                     $"</line-height>\\n</size></color>\"}}";
 
+                var msg = task.ResolvedCounter >= task.ObjectiveCounter ? "Mobilisez-vous !" : "Merci à tous !";
+                GoalSheet.Value.data = $"{{\"text\": \"<color=#000000><size=0.25>\\nObjectif commun<br>\\nLes citoyens ont effectués <color=#0e1587>{task.ResolvedCounter} donations sur {task.ObjectiveCounter}</color><br>\\n{msg}<br><br>\\n<align=right>La Mairie</align>\\n</size></color>\"}}";
+                
+                var react = task.ResolvedCounter >= task.ObjectiveCounter ? mk.Emoji(mk.Emojis.SlightlySmilingFace) : mk.Emoji(mk.Emojis.FrowningFace);
+                GoalReactionPostIt.Value.data = $"{{\"text\": \"<color=#000000><size=12>{react}</size></color>\"}}";
+
                 NetworkAreaHelper.RpcSetObject((int)cityHallArea.areaId, TaskSheet.Key, TaskSheet.Value, false);
                 NetworkAreaHelper.RpcSetObject((int)cityHallArea.areaId, RankingSheet.Key, RankingSheet.Value, false);
+                NetworkAreaHelper.RpcSetObject((int)cityHallArea.areaId, GoalSheet.Key, GoalSheet.Value, false);
+
+                try
+                {
+                    NetworkAreaHelper.SetServerDoorState("bfa7c89f-79b2-4ca0-b577-c1bf2aad40b7-1287", true, true);
+                } catch(Exception e)
+                {
+                    ModKit.Internal.Logger.LogError($"{PluginInformations.SourceName} - EditProps", e.Message);
+                }
 
                 return true;
             }
             else return false;
         }
+        #endregion
+
+        #region COROUTINE
+        public IEnumerator Cycle()
+        {
+            while (true)
+            {
+                TimeSpan timeUntilMidnight = GetTimeUntilMidnight();
+
+                var query = GetDailyTask();
+                yield return new WaitUntil(() => query.IsCompleted);
+                bool result = query.Result;
+
+                if (result) yield return new WaitForSeconds((float)timeUntilMidnight.TotalSeconds); // Attendre jusqu'à minuit
+                else yield return new WaitForSeconds(20); // réessayer dans 20 secondes*/
+            }
+        }
+
         #endregion
 
         public void InsertMenu()
@@ -218,6 +204,7 @@ namespace DailyPrestige
             });
         }
 
+        #region PANELS
         public void DailyPrestigePanel(Player player)
         {
             //Déclaration
@@ -686,7 +673,8 @@ namespace DailyPrestige
             {
                 p.Prestige += 1;
                 if(await p.Save()) player.Notify("DailyPrestige", "Modification enregistrée", NotificationManager.Type.Success);
-                else player.Notify("DailyPrestige", "Modification enregistrée", NotificationManager.Type.Error);              
+                else player.Notify("DailyPrestige", "Modification enregistrée", NotificationManager.Type.Error);
+                await GetDailyTask();
                 panel.Refresh();
             });
             panel.AddButton("Downgrade", async _ =>
@@ -695,6 +683,7 @@ namespace DailyPrestige
                 if(p.Prestige < 0) p.Prestige = 0;
                 if (await p.Save()) player.Notify("DailyPrestige", "Modification enregistrée", NotificationManager.Type.Success);
                 else  player.Notify("DailyPrestige", "Modification enregistrée", NotificationManager.Type.Error);
+                await GetDailyTask();
                 panel.Refresh();
             });
             panel.PreviousButton();
@@ -703,6 +692,7 @@ namespace DailyPrestige
             //Affichage
             panel.Display();
         }
+        #endregion
         #endregion
     }
 }
