@@ -214,6 +214,11 @@ namespace DailyPrestige
             panel.AddTabLine("Liste des tâches", _ => DailyPrestigePanelTask(player));
             panel.AddTabLine("Liste des récompenses", _ => DailyPrestigePanelReward(player));
             panel.AddTabLine("Liste des contributeurs", _ => DailyPrestigePanelPlayer(player));
+            panel.AddTabLine($"{mk.Color("Appliquer la configuration", mk.Colors.Info)}", _ =>
+            {
+                _dailyPrestigeConfig = LoadConfigFile(ConfigDailyPrestigePath);
+                panel.Refresh();
+            });
 
             panel.NextButton("Sélectionner", () => panel.SelectTab());
             panel.AddButton("Retour", _ => AAMenu.AAMenu.menu.AdminPanel(player, AAMenu.AAMenu.menu.AdminTabLines));
@@ -693,6 +698,7 @@ namespace DailyPrestige
             panel.Display();
         }
         #endregion
+
         #endregion
     }
 }

@@ -11,12 +11,8 @@ using Life;
 using DailyPrestige.Entities;
 using ModKit.Utils;
 using Life.InventorySystem;
-using DailyPrestige.Classes;
 using Life.AreaSystem;
-using ModKit.Helper.ManagerHelper;
-using System.Reflection;
-using System;
-using Life.DB;
+
 
 namespace DailyPrestige.Points
 {
@@ -426,7 +422,7 @@ namespace DailyPrestige.Points
             Panel panel = Context.PanelHelper.Create($"Modèle \"{pattern.PatternName}\" enregistré !", UIPanel.PanelType.Text, player, () =>
             ConfirmGeneratePoint(player, pattern));
 
-            panel.TextLines.Add($"Voulez-vous générer un point sur votre position avec ce modèle \"{PatternName}\"");
+            panel.TextLines.Add($"Voulez-vous générer un point sur votre position avec ce modèle ?");
 
             panel.CloseButtonWithAction("Générer", async () =>
             {
