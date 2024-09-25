@@ -162,6 +162,7 @@ namespace DailyPrestige
                 NetworkAreaHelper.RpcSetObject((int)cityHallArea.areaId, TaskSheet.Key, TaskSheet.Value, false);
                 NetworkAreaHelper.RpcSetObject((int)cityHallArea.areaId, RankingSheet.Key, RankingSheet.Value, false);
                 NetworkAreaHelper.RpcSetObject((int)cityHallArea.areaId, GoalSheet.Key, GoalSheet.Value, false);
+                NetworkAreaHelper.RpcSetObject((int)cityHallArea.areaId, GoalReactionPostIt.Key, GoalReactionPostIt.Value, false);
 
                 try
                 {
