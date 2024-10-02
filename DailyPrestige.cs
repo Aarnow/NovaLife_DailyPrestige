@@ -198,7 +198,7 @@ namespace DailyPrestige
 
         public void InsertMenu()
         {
-            _menu.AddAdminTabLine(PluginInformations, 5, "DailyPrestige", (ui) =>
+            _menu.AddAdminPluginTabLine(PluginInformations, 5, "DailyPrestige", (ui) =>
             {
                 Player player = PanelHelper.ReturnPlayerFromPanel(ui);
                 DailyPrestigePanel(player);
@@ -215,9 +215,10 @@ namespace DailyPrestige
             panel.AddTabLine("Liste des tâches", _ => DailyPrestigePanelTask(player));
             panel.AddTabLine("Liste des récompenses", _ => DailyPrestigePanelReward(player));
             panel.AddTabLine("Liste des contributeurs", _ => DailyPrestigePanelPlayer(player));
-            panel.AddTabLine($"{mk.Color("Appliquer la configuration", mk.Colors.Info)}", _ =>
+            panel.AddTabLine($"{mk.Color("Appliquer la configuration", mk.Colors.Info)}", async _ =>
             {
                 _dailyPrestigeConfig = LoadConfigFile(ConfigDailyPrestigePath);
+                await GetDailyTask();
                 panel.Refresh();
             });
 
