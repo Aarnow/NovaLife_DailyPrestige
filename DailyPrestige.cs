@@ -223,7 +223,7 @@ namespace DailyPrestige
             });
 
             panel.NextButton("Sélectionner", () => panel.SelectTab());
-            panel.AddButton("Retour", _ => AAMenu.AAMenu.menu.AdminPluginPanel(player, AAMenu.AAMenu.menu.AdminPluginTabLines));
+            panel.AddButton("Retour", _ => AAMenu.AAMenu.menu.AdminPluginPanel(player));
             panel.CloseButton();
 
             //Affichage
